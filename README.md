@@ -1,86 +1,281 @@
-# IP and Domain Threat Reputation Checker
+<style>
+  pre {
+    background-color: #1e1e1e !important;
+    color: #d4d4d4 !important;
+    padding: 16px !important;
+    border-radius: 6px !important;
+    overflow: auto !important;
+  }
+  
+  code {
+    font-family: 'Consolas', 'Monaco', 'Courier New', monospace !important;
+    font-size: 14px !important;
+  }
+  
+  body {
+    font-family: Arial, Helvetica, sans-serif !important;
+    font-size: 12pt !important;
+    line-height: 1.5 !important;
+    max-width: 900px !important;
+    margin: 0 auto !important;
+    padding: 20px !important;
+  }
+  
+  h1, h2, h3, h4 {
+    font-family: Arial, Helvetica, sans-serif !important;
+    color: #333 !important;
+  }
+  
+  h1 {
+    font-size: 20pt !important;
+    margin-top: 20px !important;
+  }
+  
+  h2 {
+    font-size: 16pt !important;
+    margin-top: 16px !important;
+  }
+  
+  h3 {
+    font-size: 14pt !important;
+    margin-top: 14px !important;
+  }
+  
+  table {
+    border-collapse: collapse !important;
+    width: 100% !important;
+    margin: 16px 0 !important;
+  }
+  
+  th, td {
+    border: 1px solid #ddd !important;
+    padding: 8px !important;
+    text-align: left !important;
+  }
+  
+  th {
+    background-color: #f2f2f2 !important;
+    font-weight: bold !important;
+  }
+  
+  img {
+    max-width: 100% !important;
+    height: auto !important;
+  }
+</style>
 
-This Flask application is designed to provide users with a convenient way to assess the reputation of an IP address or domain name through the integration of VirusTotal, AbuseIPDB, Criminal IP, and Whoislookup APIs. By offering a user-friendly interface, the application allows users to input a single IP or domain and receive comprehensive results on a single page. This streamlined process of gathering threat-related information saves valuable time, particularly during urgent and time-critical investigations.
+# Tour Details System - Low-Level Design Document
 
-![image](https://github.com/user-attachments/assets/a47d208f-e962-4a90-8cb4-2dfc412b626c) 
-![image](https://github.com/user-attachments/assets/51a00a73-446e-4991-904a-25c3b0205fbe)
+## 1. Requirement Summary
 
+The Tour Details System is designed to maintain tour-related records in the TOUR_DETAILS database, offering essential record management capabilities. The system will handle tour information including places, guides, languages, dates, group sizes, and pricing.
 
-## Features
+Core functionalities include:
 
-- **Toggle between IP and Domain checks:** Users can choose to check either IP addresses or domain names.
-- **Input validation:** The application handles errors for empty inputs or incorrect formats, providing informative messages.
-- **Dynamic result display:** The reputation results are displayed in a well-structured and styled format.
-- **Modular code:** API calls and other functionalities are separated into different modules for better maintainability.
+- Database creation of two tables: TOUR_DETAILS and SEASON_DISCOUNT
+- Special handling for null values in the TOUR_GUIDE field
+- Multiple-tier discount calculation based on group size and language
+- Final price calculation with additional reductions based on discount ranges
+- Generation of formatted output files for processed records
+- Database operations including selects with joins and case conversion features
 
-## Requirements
+## 2. Component List
 
-- Python 3.8 or higher
-- Flask
-- Requests
+### 2.1 Database Components
 
-## Installation
+| Component Type | Component Name | Description | Input/Output |
+|----------------|----------------|-------------|--------------|
+| Table | TOUR_DETAILS | Stores tour information. Fields include: TOUR_ID, TOUR_PLACE, TOUR_GUIDE, LANGUAGE, TOUR_DATE, GROUP_SIZE, PRICE_PER_HEAD. | Input/Output |
+| Table | SEASON_DISCOUNT | Stores calculated discount information based on tour details. Fields include: TOUR_PLACE, TOUR_GUIDE, TOUR_DATE, DISCOUNT, FINAL_PRICE, GROUP_DISCOUNT. | Output |
 
-1. **Clone the repository:**
+### 2.2 SPUFI Components
 
-   ```bash
-   git clone https://github.com/Gaurav-Chatribin/threat-reputation-checker.git
-   cd ip-domain-reputation-checker
+| Component Type | Component Name | Description | Input/Output |
+|----------------|----------------|-------------|--------------|
+| SPUFI Member | SB12L\<yyy\> | Creates the TOUR_DETAILS table. | Input |
+| SPUFI Member | SB22L\<yyy\> | Creates the SEASON_DISCOUNT table. | Input |
+| SPUFI Member | SB32L\<yyy\> | Inserts data into the TOUR_DETAILS table. | Input |
+| SPUFI Member | SB42L\<yyy\> | Performs a LEFT OUTER JOIN between TOUR_DETAILS and SEASON_DISCOUNT tables, filtering for LANGUAGE = 'ENG' and GROUP_SIZE > 10. | Input |
+| SPUFI Member | SB52L\<yyy\> | Selects records from SEASON_DISCOUNT where DISCOUNT <= 20, converting relevant fields to lowercase. | Input |
 
-2. **Create a virtual environment (optional but recommended):**
+### 2.3 COBOL Program Components
 
-    ```bash
-    python3 -m venv venv
-    source venv/bin/activate  # On Windows use `venv\Scripts\activate`
-    ```
+| Component Type | Component Name | Description | Input/Output |
+|----------------|----------------|-------------|--------------|
+| COBOL Program | CB12L\<yyy\> | Main COBOL program responsible for processing tour records, calculating discounts, and generating output files. | Input |
+| DCLGEN | DB12L\<yyy\> | Declaration generator for the TOUR_DETAILS table, providing COBOL data structures. | Input |
+| DCLGEN | DB22L\<yyy\> | Declaration generator for the SEASON_DISCOUNT table, providing COBOL data structures. | Input |
 
-3. **Install the required dependencies:**
+### 2.4 JCL Components
 
-    ```bash
-    pip install -r requirements.txt
-    ```
+| Component Type | Component Name | Description | Input/Output |
+|----------------|----------------|-------------|--------------|
+| JCL | JB12L\<yyy\> | JCL script that compiles the CB12L\<yyy\> COBOL program and executes it. | Input |
 
-4. **Set up your API keys:**
+### 2.5 Files
 
-    Create a file in the root directory. Name it "config.py" and paste the API_KEY file as per the format mentioned below:
+| File | DD Name | Record Length | Description | Input/Output |
+|------|---------|--------------|-------------|--------------|
+| \<TLABID\>.L2L.TOUR.PS | OUTTOUR | 80 | Output file for processed records with discount information. | Output |
+| \<TLABID\>.L2L.ODEL.PS | OUTODEL | 80 | Output file for records with null TOUR_GUIDE values. | Output |
 
-    ```python
-    VIRUSTOTAL_API_KEY = 'your_virustotal_api_key'
-    ABUSEIPDB_API_KEY = 'your_abuseipdb_api_key'
-    ```
+## 3. Flowchart
 
-5. **Run the application:**
-    Change the directory to the root directory of the cloned project and run the following command:
-    
-    ```bash
-    python app.py
-    ```
+![System Flowchart](media/image1.png)
 
-6. **Access the application:**
-    Open a browser and navigate to http://127.0.0.1:5000/.
+## 4. Pseudo Code
 
-## Usage
+```
+IDENTIFICATION DIVISION.
+PROGRAM-ID. CB12L<yyy>.
 
-   - Enter an IP address or domain name in the search box.
-   - Choose the appropriate option (IP or Domain).
-   - Click on the "Check Reputation" button.
-   - View the results in the dynamically generated result boxes.
+DATA DIVISION.
 
-## Error Handling
+PROCEDURE DIVISION.
 
-   - If the input is empty, an error message will prompt you to enter an IP or domain.
-   - If you select "IP" but enter a domain, or vice versa, an error message will inform you of the mismatch and guide you to correct it.
+0000-MAIN-PARA.
+    PERFORM 1000-INITIALIZATION
+    PERFORM 2000-PROCESS-TOUR-RECORDS
+    PERFORM 9000-TERMINATION.
 
-## License
+1000-INITIALIZATION.
+    OPEN OUTPUT OUTTOUR
+    OPEN OUTPUT OUTODEL
+    INITIALIZE WS-VARIABLES
+    EXEC SQL
+        CONNECT TO DBLAB01
+    END-EXEC.
 
-   This project is licensed under the MIT License - see the LICENSE file for details.
+2000-PROCESS-TOUR-RECORDS.
+    EXEC SQL
+        DECLARE TOUR-CURSOR CURSOR FOR
+        SELECT TOUR_PLACE, TOUR_GUIDE, LANGUAGE, TOUR_DATE, GROUP_SIZE, PRICE_PER_HEAD
+        FROM TOUR_DETAILS
+        WHERE GROUP_SIZE > 1 AND PRICE_PER_HEAD > 1000
+    END-EXEC
+    EXEC SQL
+        OPEN TOUR-CURSOR
+    END-EXEC
+    EXEC SQL
+        FETCH TOUR-CURSOR INTO
+        :WS-TOUR-PLACE, :WS-TOUR-GUIDE :WS-TOUR-GUIDE-NULL-IND,
+        :WS-LANGUAGE, :WS-TOUR-DATE, :WS-GROUP-SIZE, :WS-PRICE-PER-HEAD
+    END-EXEC
+    PERFORM 3000-PROCESS-CURSOR
+    UNTIL SQLCODE NOT = 0
+    EXEC SQL
+        CLOSE TOUR-CURSOR
+    END-EXEC.
 
-## Contributing
+3000-PROCESS-CURSOR.
+    IF WS-TOUR-GUIDE-NULL-IND < 0
+        MOVE 'YTD' TO WS-TOUR-GUIDE
+        PERFORM 4000-WRITE-NULL-RECORD
+        PERFORM 5000-DELETE-TOUR-DETAIL
+    ELSE
+        PERFORM 6000-CALC-DISCOUNT
+        COMPUTE WS-GROUP-DISCOUNT = WS-GROUP-SIZE * WS-DISCOUNT
+        PERFORM 7000-CALC-FINAL-PRICE
+        PERFORM 8000-INSERT-SEASON-DISCOUNT
+        PERFORM 8100-WRITE-PROCESSED-RECORD
+    END-IF
+    EXEC SQL
+        FETCH TOUR-CURSOR INTO
+        :WS-TOUR-PLACE, :WS-TOUR-GUIDE :WS-TOUR-GUIDE-NULL-IND,
+        :WS-LANGUAGE, :WS-TOUR-DATE, :WS-GROUP-SIZE, :WS-PRICE-PER-HEAD
+    END-EXEC.
 
-   If you have suggestions or want to contribute, please create an issue or submit a pull request.
+4000-WRITE-NULL-RECORD.
+    MOVE WS-TOUR-PLACE TO OUT-ODEL-TOUR-PLACE
+    MOVE WS-TOUR-GUIDE TO OUT-ODEL-TOUR-GUIDE
+    MOVE WS-LANGUAGE TO OUT-ODEL-LANGUAGE
+    MOVE WS-TOUR-DATE TO OUT-ODEL-TOUR-DATE
+    MOVE WS-GROUP-SIZE TO OUT-ODEL-GROUP-SIZE
+    MOVE WS-PRICE-PER-HEAD TO OUT-ODEL-PRICE-PER-HEAD
+    WRITE OUTODEL-REC.
 
-## Contact
+5000-DELETE-TOUR-DETAIL.
+    EXEC SQL
+        DELETE FROM TOUR_DETAILS
+        WHERE CURRENT OF TOUR-CURSOR
+    END-EXEC.
 
-- **Author**: Gaurav Chatribin
-- **Email**: gauravchatribin58@gmail.com
-- **GitHub**: [Gaurav-Chatribin](https://github.com/Gaurav-Chatribin)
+6000-CALC-DISCOUNT.
+    EVALUATE TRUE
+    WHEN WS-GROUP-SIZE = 5
+        COMPUTE WS-DISCOUNT = WS-PRICE-PER-HEAD * 0.01
+    WHEN WS-GROUP-SIZE > 5 AND WS-GROUP-SIZE <= 10
+    AND WS-LANGUAGE = 'ENG'
+        COMPUTE WS-DISCOUNT = WS-PRICE-PER-HEAD * 0.02
+    WHEN WS-GROUP-SIZE > 10 AND WS-GROUP-SIZE <= 20
+        COMPUTE WS-DISCOUNT = WS-PRICE-PER-HEAD * 0.03
+    WHEN WS-GROUP-SIZE > 20 AND WS-GROUP-SIZE <= 30
+    AND WS-LANGUAGE = 'ENG'
+        COMPUTE WS-DISCOUNT = WS-PRICE-PER-HEAD * 0.018
+    WHEN WS-GROUP-SIZE > 20 AND WS-GROUP-SIZE <= 30
+    AND WS-LANGUAGE = 'TAM'
+        COMPUTE WS-DISCOUNT = WS-PRICE-PER-HEAD * 0.015
+    END-EVALUATE.
+
+7000-CALC-FINAL-PRICE.
+    EVALUATE TRUE
+    WHEN WS-DISCOUNT >= 10 AND WS-DISCOUNT <= 20
+        COMPUTE WS-FINAL-PRICE = WS-PRICE-PER-HEAD -
+        (WS-GROUP-SIZE * WS-DISCOUNT) - 10
+    WHEN WS-DISCOUNT > 20 AND WS-DISCOUNT <= 40
+        COMPUTE WS-FINAL-PRICE = WS-PRICE-PER-HEAD -
+        (WS-GROUP-SIZE * WS-DISCOUNT) - 12
+    WHEN WS-DISCOUNT > 40 AND WS-DISCOUNT <= 50
+        COMPUTE WS-FINAL-PRICE = WS-PRICE-PER-HEAD -
+        (WS-GROUP-SIZE * WS-DISCOUNT) - 13
+    WHEN WS-DISCOUNT > 50 AND WS-DISCOUNT < 100
+        COMPUTE WS-FINAL-PRICE = WS-PRICE-PER-HEAD -
+        (WS-GROUP-SIZE * WS-DISCOUNT) - 9
+    END-EVALUATE.
+
+8000-INSERT-SEASON-DISCOUNT.
+    EXEC SQL
+        INSERT INTO SEASON_DISCOUNT
+        (TOUR_PLACE, TOUR_GUIDE, TOUR_DATE, DISCOUNT, FINAL_PRICE, GROUP_DISCOUNT)
+        VALUES
+        (:WS-TOUR-PLACE, :WS-TOUR-GUIDE, :WS-TOUR-DATE,
+        :WS-DISCOUNT, :WS-FINAL-PRICE, :WS-GROUP-DISCOUNT)
+    END-EXEC.
+
+8100-WRITE-PROCESSED-RECORD.
+    MOVE WS-TOUR-PLACE TO OUT-TOUR-TOUR-PLACE
+    MOVE WS-TOUR-GUIDE TO OUT-TOUR-TOUR-GUIDE
+    MOVE WS-LANGUAGE TO OUT-TOUR-LANGUAGE
+    MOVE WS-TOUR-DATE TO OUT-TOUR-TOUR-DATE
+    MOVE WS-GROUP-SIZE TO OUT-TOUR-GROUP-SIZE
+    MOVE WS-DISCOUNT TO OUT-TOUR-DISCOUNT
+    MOVE WS-GROUP-DISCOUNT TO OUT-TOUR-GROUP-DISCOUNT
+    MOVE WS-FINAL-PRICE TO OUT-TOUR-FINAL-PRICE
+    WRITE OUTTOUR-REC.
+
+9000-TERMINATION.
+    CLOSE OUTTOUR
+    CLOSE OUTODEL
+    EXEC SQL
+        DISCONNECT
+    END-EXEC
+    STOP RUN.
+```
+
+## 5. Test Cases
+
+| Test Case Description | Status (Pass/Fail) |
+|------------------------|-------------------|
+| Create TOUR_DETAILS table with correct column definitions | |
+| Create SEASON_DISCOUNT table with correct column definitions | |
+| Insert sample records into TOUR_DETAILS table | |
+| Process records with NULL values in TOUR_GUIDE field | |
+| Calculate discount for GROUP_SIZE = 5 | |
+| Calculate discount for GROUP_SIZE between 6 and 10 with LANGUAGE = "ENG" | |
+| Calculate discount for GROUP_SIZE between 11 and 20 | |
+| Calculate discount for GROUP_SIZE between 21 and 30 with LANGUAGE = "ENG" | |
+| Calculate discount for GROUP_SIZE between 21 and 30 with LANGUAGE = "TAM" | |
+| Calculate FINAL_PRICE for DISCOUNT between 10 and 20 | |
+| Calculate FINAL_PRICE for DISCOUNT between 21 and 40 | |
+| Calculate FINAL_PRICE for DISCOUNT between 41 and 50 | |
+| Calculate FINAL_PRICE for DISCOUNT between 51 and 99 | |
